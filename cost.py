@@ -1,58 +1,76 @@
 import matplotlib.pyplot as plt
-import numpy as np
 
-setup_descriptions = [
-    "Annual Rent", "Deposit", "Furnishing & Decoration", "Initial Staff Salaries",
-    "Construction Cost", "Ventilation & Air Conditioning", "Electrical & Mechanical Installation",
-    "Bar Setup", "Lighting", "Utility Costs", "Other"
-]
+# Ay başlıkları
+months = list(range(0, 7))
+month_labels = [f"Month {m}" for m in months]
 
-setup_costs = [
-    3100000, 1240000, 368500, 203100, 1595000, 475500,
-    366000, 535000, 70000, 96400, 20000
-]
+# Her ay için harcamalar (6. ayda sadece 1 "Utilities" olacak şekilde!)
+monthly_items = {
+    0: [("Project Prep", 0)],
+    1: [("Rent", 620000), ("Deposit", 1240000), ("Furnishing & Decoration", 368500), ("Utilities", 19280)],
+    2: [("Rent", 620000), ("Construction", 1595000), ("Utilities", 19280)],
+    3: [("Rent", 620000), ("Ventilation & Electrical Install", 841500), ("Utilities", 19280)],
+    4: [("Rent", 620000), ("Bar Setup", 535000), ("Lighting", 70000), ("Utilities", 19280)],
+    5: [("Rent", 620000), ("Utilities", 19280)],
+    6: [("2-Month Rent", 1240000), ("Misc. Final Items", 20000), ("Staff Salaries", 203100)]  # Utilities sade
+}
 
-periods = list(range(1, len(setup_costs) + 1))
+# Okların x konumları (manuel, hizalı)
+month_x_positions = {
+    0: [0.5],
+    1: [1.075, 1.41, 1.745, 2.08],
+    2: [2.575, 2.91, 3.245],
+    3: [3.575, 3.91, 4.245],
+    4: [4.575, 4.91, 5.245, 5.58],
+    5: [5.91, 6.245],
+    6: [6.575, 6.91, 7.245]
+}
 
-discount_rate = 0.10
+# Yazı kaydırmaları (çakışmaları engeller)
+label_offsets = {
+    (1, 2): 0.05,    # Furnishing & Decoration sağa
+    (3, 0): -0.05,   # Rent (Month 3) sola
+    (3, 1): 0.05,    # Ventilation sağa
+    (6, 1): 0.07     # Misc. Final Items sağa
+}
 
-npv = sum(cf / (1 + discount_rate)**i for i, cf in enumerate(setup_costs))
+# Ölçek
+scale_factor = 30000
 
-fig, ax = plt.subplots(figsize=(14, 7))
-ax.axhline(0, color='black', linewidth=1)
+# Grafik oluştur
+fig, ax = plt.subplots(figsize=(18, 9))
+ax.axhline(0, color='red', linewidth=2)
 
-arrow_len_factor = 5
-min_cf = max(setup_costs)
+# Ay çizgileri
+for m in months:
+    ax.axvline(x=m, color='lightgrey', linestyle='--', linewidth=0.75)
 
+# Okları çiz
+for month, items in monthly_items.items():
+    for i, (label, cost) in enumerate(items):
+        x = month_x_positions[month][i]
+        length = cost / scale_factor
 
-for i, (x, y, desc) in enumerate(zip(periods, setup_costs, setup_descriptions)):
-    scaled_len = -y / min_cf * arrow_len_factor
-    ax.annotate('', xy=(x, scaled_len), xytext=(x, 0),
-                arrowprops=dict(facecolor='black', edgecolor='black',
-                                width=2.5, headwidth=12, headlength=12))
+        ax.arrow(x, 0, 0, -length, head_width=0.06, head_length=0.4,
+                 fc='black', ec='black', linewidth=1)
+        ax.text(x, -length - 2.0, f"₺{cost:,}", ha='center', va='top', fontsize=8)
 
-   
-    ax.text(x, 0.3, desc, ha='center', va='bottom', fontsize=10, rotation=45)
+        offset = label_offsets.get((month, i), 0)
+        ax.text(x + offset, 2.5, label, ha='center', va='bottom', fontsize=8, rotation=45)
 
-   
-    ax.text(x, scaled_len - 0.2, f"TL {y:,.0f}".replace(",", "."),
-            ha='center', va='top', fontsize=10)
+# Eksenler
+ax.set_xticks(months)
+ax.set_xticklabels(month_labels)
+ax.set_xlim(-0.5, 8.1)
+ax.set_ylim(-100, 7)
 
-
-box_text = f"Net Present Value (NPV)\n= TL {-npv:,.0f}".replace(",", ".")
-props = dict(boxstyle='round,pad=0.5', facecolor='#d0f0c0', edgecolor='black')
-ax.text(0.98, 0.95, box_text, transform=ax.transAxes,
-        fontsize=12, verticalalignment='top', horizontalalignment='right',
-        bbox=props)
-
-
-ax.set_xlim(0.5, len(periods) + 0.5)
-ax.set_ylim(-6, 1.5)  
-ax.set_xticks(periods)
+# Stil temizliği
+for spine in ['top', 'right', 'left', 'bottom']:
+    ax.spines[spine].set_visible(False)
+ax.tick_params(left=False, bottom=False)
 ax.set_yticks([])
-ax.set_xlabel("Period (Month)", fontsize=12)
-ax.set_title("Setup Cost Timeline (Based on Breakdown)", fontsize=14)
+
+# Başlık
+plt.title("Cash Flow Diagram – FINAL CLEAN (No Overlaps, Only One Utilities)", fontsize=14, fontweight='bold', y=1.12)
 plt.tight_layout()
-
-
 plt.show()
