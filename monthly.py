@@ -1,89 +1,76 @@
-import networkx as nx
 import matplotlib.pyplot as plt
-import math
 
-# --- Yardımcı fonksiyon: sayılar yakın mı (float toleransı için)
-def is_close(a, b, tol=1e-6):
-    return math.isclose(a, b, abs_tol=tol)
+# 📌 Veriler
+items = ["Electricity", "Water", "Natural Gas", "Internet"]
+setup_fees = [14000, 14000, 36000, 2400]
+monthly_costs = [2500, 1500, 2000, 0]
+months = [1, 2, 3, 4, 5]
 
-# --- 1. Görevler ve süreleri
-edges = [
-    ("A", "B", 4),
-    ("B", "C", 5),
-    ("C", "D", 2),
-    ("D", "K", 3),
-    ("K", "E", 7),
-    ("B", "F", 5),
-    ("F", "G", 4),
-    ("G", "H", 5),
-    ("H", "E", 4),
-    ("F", "I", 8),
-    ("G", "J", 3),
-    ("J", "L", 2),
-    ("L", "E", 2)
-]
+# 📍 Diagram verileri
+x_pos = []
+y_text = []
+labels = []
+arrow_lengths = []
 
-# --- 2. Ağı oluştur
-G = nx.DiGraph()
-for u, v, w in edges:
-    G.add_edge(u, v, weight=w)
+# 🔢 Offset'ler
+item_offsets = [0, 0.2, 0.4, 0.6]
 
-# --- 3. Forward pass (ES, EF)
-topo_order = list(nx.topological_sort(G))
-ES = {n: 0 for n in topo_order}
-EF = {}
+# 🎯 Ölçek: En uzun olan (36.000) biraz kısaltılıyor, diğerleri uzun kalıyor
+max_value = max(setup_fees + monthly_costs)
+normal_scale = 10 / max_value
+reduced_scale = 7 / max_value  # 36.000 için daha kısa
 
-for u in topo_order:
-    for v in G.successors(u):
-        ES[v] = max(ES[v], ES[u] + G[u][v]['weight'])
+# 0. ay: Setup ücretleri
+for i, (item, fee) in enumerate(zip(items, setup_fees)):
+    if fee == 0:
+        continue
+    x = 0 + item_offsets[i]
+    x_pos.append(x)
+    y_text.append(f"{fee:,.0f}")
+    labels.append(item)
+    scale = reduced_scale if fee == 36000 else normal_scale
+    arrow_lengths.append(fee * scale)
 
-for u in topo_order:
-    EF[u] = ES[u] + max([G[u][v]['weight'] for v in G.successors(u)] or [0])
+# 1–5. aylar: Aylık giderler
+for month in months:
+    for j, (item, cost) in enumerate(zip(items, monthly_costs)):
+        if cost == 0:
+            continue
+        x = month + item_offsets[j]
+        x_pos.append(x)
+        y_text.append(f"{cost:,.0f}")
+        labels.append(item)
+        arrow_lengths.append(cost * normal_scale)
 
-# --- 4. Backward pass (LF, LS)
-max_ef = max(EF.values())
-LF = {n: max_ef for n in reversed(topo_order)}
-LS = {}
+# 💵 Toplam maliyet
+total_cost = sum(setup_fees) + sum([c * 5 for c in monthly_costs])
 
-for u in reversed(topo_order):
-    for v in G.successors(u):
-        LF[u] = min(LF[u], LF[v] - G[u][v]["weight"])
+# ✏️ Çizim
+plt.figure(figsize=(22, 8))
+plt.title("Utility Cash Outflows Over 5 Months (with Setup Costs at Month 0)")
 
-for u in topo_order:
-    LS[u] = LF[u] - max([G[u][v]['weight'] for v in G.successors(u)] or [0])
+for x, y, label, arrow_len in zip(x_pos, y_text, labels, arrow_lengths):
+    plt.annotate("",
+                 xy=(x, -arrow_len),
+                 xytext=(x, 0),
+                 arrowprops=dict(arrowstyle='-|>', lw=2, color='black'))
+    plt.text(x, -arrow_len - 0.3, y, ha='center', va='center', fontsize=10)
+    plt.text(x, 0.25, label, ha='center', va='bottom', fontsize=9, rotation=45)
 
-# --- 5. Slack ve gerçek kritik kenarlar
-slack = {n: LS[n] - ES[n] for n in G.nodes()}
-critical_edges = []
-for u, v in G.edges():
-    dur = G[u][v]["weight"]
-    if is_close(ES[u] + dur, ES[v]) and is_close(LS[u] + dur, LS[v]):
-        critical_edges.append((u, v))
+# 🔴 X ekseni çizgisi
+plt.axhline(y=0, color='red', linewidth=2)
 
-# --- 6. Grafik çizimi
-pos = nx.shell_layout(G)
-plt.figure(figsize=(15, 8))
+# 🟨 Toplam kutusu
+plt.text(6.3, 1, f"Total Utility Cost (5 Months)\n= TL {total_cost:,}",
+         bbox=dict(boxstyle="round,pad=0.4", fc="yellow", ec="black", lw=1.5),
+         fontsize=10, ha="center")
 
-# Düğümler
-nx.draw_networkx_nodes(G, pos, node_color="mediumpurple", node_size=1500)
-
-# Düğüm etiketleri (zamanlarla birlikte)
-labels = {
-    n: f"{n}\nES:{ES[n]}, EF:{EF[n]}\nLS:{LS[n]}, LF:{LF[n]}"
-    for n in G.nodes()
-}
-nx.draw_networkx_labels(G, pos, labels=labels, font_size=8, font_color="white")
-
-# Kenar çizimi
-edge_colors = ["red" if (u, v) in critical_edges else "black" for u, v in G.edges()]
-nx.draw_networkx_edges(G, pos, edge_color=edge_colors, width=2.5, arrows=True)
-
-# Süre etiketleri (kenar ağırlıkları)
-edge_labels = nx.get_edge_attributes(G, "weight")
-nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=10)
-
-# Başlık ve görünüm
-plt.title("📌 Critical Path Network Diagram with ES, EF, LS, LF", fontsize=14)
-plt.axis("off")
+plt.xticks(range(6))
+plt.xlim(-0.5, 6.9)
+plt.ylim(-11, 1.5)
+plt.xlabel("Month")
+plt.yticks([])
 plt.tight_layout()
+plt.grid(False)
+plt.box(False)
 plt.show()
